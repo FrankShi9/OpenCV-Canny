@@ -12,7 +12,7 @@ np.set_printoptions(threshold=np.inf)
 
 #openCV video live capture
 cap = cv2.VideoCapture(0)
- 
+
 printCnt = True
 
 #used in detect()
@@ -161,49 +161,17 @@ class ShapeDetector:
             print("The number of {} is {}".format(type, self.counter[type]))
 
 #---------------------------------------------------------------------------------------------------
-
-
-
-
-async def run():
-
-    global asyncio, System
-    loop = asyncio.get_event_loop()
-
-    #take off
-    #loop.run_until_complete(takeoff1()) 
-    drone = System()
-    await drone.connect(system_address="udp://:14540")
-    print("-- Arming")
-    await drone.action.arm()
-
-    print("-- Setting initial setpoint")
-    await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, 0.0, 0.0))
-
-    print("-- Starting offboard")
-    try:
-        await drone.offboard.start()
-    except OffboardError as error:
-        print(f"Starting offboard mode failed with error code: {error._result.result}")
-        print("-- Disarming")
-        await drone.action.disarm()
-        return
-
-    print("-- Go 0m North, 0m East, -5m Down within local coordinate system")
-    await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, -5.0, 0.0))
-    await asyncio.sleep(15)
-
-
-    #real time video cam edge canny 
-    global cv2, printCnt, np
-    while True:
+    def polygon(self):
+         #real time video cam edge canny 
+        global cv2, printCnt, np
+        #while True:
         _,frame = cap.read()
         # if frame.isEmpty():
-        #break
+        #   break
         frame=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
         frame=cv2.blur(frame, (7,7))
         frame=cv2.Canny(frame,0,30,3)
-        cv2.imshow("real time edge detect:",frame)
+        #cv2.imshow("real time edge detect:",frame)
 
         counts = cv2.findContours(frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         #只需要取轮廓上点的信息
@@ -226,46 +194,83 @@ async def run():
             #print(frame)
             #np.savetxt("data.txt", frame)
             #printCnt = False
-        
-        
+        #a=cv2.waitKey(30)
+        #if a == 27:  #exit real time cam canny
+            #break
 
-        print('**'+str(test_sd.counter['right rectangle'])+'**')
+        cap.release() #release camera live capture
+        del cv2
+        del np
+
+        print('** The number of right rectangles: '+str(test_sd.counter['right rectangle'])+' **')
+
+        return test_sd.counter['right rectangle']
 
 
+async def run():
+
+        global asyncio, System
+        loop = asyncio.get_event_loop()
+
+        #take off
+        #loop.run_until_complete(takeoff1()) 
+        drone = System()
+        await drone.connect(system_address="udp://:14540")
+        print("-- Arming")
+        await drone.action.arm()
+
+        print("-- Setting initial setpoint")
+        await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, 0.0, 0.0))
+
+        print("-- Starting offboard")
+
+        try:
+            await drone.offboard.start()
+        except OffboardError as error:
+            print(f"Starting offboard mode failed with error code: {error._result.result}")
+            print("-- Disarming")
+            await drone.action.disarm()
+            return
+
+
+        print("-- Go 0m North, 0m East, -5m Down within local coordinate system")
+        await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, -5.0, 0.0))
+        await asyncio.sleep(15)
+
+        sd = ShapeDetector()
         
-        #if test_sd.counter['right rectangle'] >= 20: #while safe land condition is not met
-        if test_sd.counter['right rectangle'] == 0:    
-            #loop.run_until_complete(adjust())
+        #while safe land condition is not met
+        while sd.polygon() >= 20:    #bug here!! name cv2 is not defined
+        #loop.run_until_complete(adjust())
             print("-- Adjusting")
-            await asyncio.sleep(10)
+            await asyncio.sleep(5)
             await drone.offboard.set_position_ned(PositionNedYaw(5.0, 0.0, 0.0, 0.0))
-            await asyncio.sleep(10)
-
-            print("-- Stopping offboard")
-            try:
-                await drone.offboard.stop()
-            except OffboardError as error:
-                print(f"Stopping offboard mode failed with error code: {error._result.result}")
+            
         
 
-        #land
+        #landing procedure
         #loop.run_until_complete(land()) 
+        await asyncio.sleep(5)
+        print("-- Stopping offboard")
+        try:
+
+            await drone.offboard.stop()
+
+        except OffboardError as error:
+
+            print(f"Stopping offboard mode failed with error code: {error._result.result}")
+        
         print("-- Landing")
         await asyncio.sleep(5)
         await drone.action.land()
-        break
-        a=cv2.waitKey(30)
-        if a == 27:  #exit real time cam canny
-            break
+            
 
-    cap.release() #release camera live capture
-    del cv2
-    del np
+            
+
+        
 
     
     
-
-    #program entrance
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.run_until_complete(run())
