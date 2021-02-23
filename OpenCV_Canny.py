@@ -36,6 +36,29 @@ async def takeoff():
 
 #---------------------------------------------------------------------------------------------------
 
+async def takeoff1():
+    drone = System()
+    await drone.connect(system_address="udp://:14540")
+
+    print("-- Arming")
+    await drone.action.arm()
+
+    print("-- Setting initial setpoint")
+    await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, 0.0, 0.0))
+
+    print("-- Starting offboard")
+    try:
+        await drone.offboard.start()
+    except OffboardError as error:
+        print(f"Starting offboard mode failed with error code: {error._result.result}")
+        print("-- Disarming")
+        await drone.action.disarm()
+        return
+
+    print("-- Go 0m North, 0m East, -5m Down within local coordinate system")
+    await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, -5.0, 0.0))
+    await asyncio.sleep(10)
+#---------------------------------------------------------------------------------------------------
 async def land():
     drone = System()
     await drone.connect(system_address="udp://:14540")
@@ -55,7 +78,6 @@ async def adjust():
     drone = System()
     await drone.connect(system_address="udp://:14540")
 
-
     print("-- Setting initial setpoint")
     await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, 0.0, 0.0))
     
@@ -68,7 +90,7 @@ async def adjust():
 
     print("-- Adjusting")
     await drone.offboard.set_position_ned(PositionNedYaw(5.0, 0.0, 0.0, 0.0))
-    await asyncio.sleep(5)
+    await asyncio.sleep(10)
 
     print("-- Stopping offboard")
     try:
@@ -143,13 +165,35 @@ class ShapeDetector:
 
 
 
-def main():
+async def run():
 
+    global asyncio, System
     loop = asyncio.get_event_loop()
 
     #take off
-    loop.run_until_complete(takeoff()) 
-    
+    #loop.run_until_complete(takeoff1()) 
+    drone = System()
+    await drone.connect(system_address="udp://:14540")
+    print("-- Arming")
+    await drone.action.arm()
+
+    print("-- Setting initial setpoint")
+    await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, 0.0, 0.0))
+
+    print("-- Starting offboard")
+    try:
+        await drone.offboard.start()
+    except OffboardError as error:
+        print(f"Starting offboard mode failed with error code: {error._result.result}")
+        print("-- Disarming")
+        await drone.action.disarm()
+        return
+
+    print("-- Go 0m North, 0m East, -5m Down within local coordinate system")
+    await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, -5.0, 0.0))
+    await asyncio.sleep(15)
+
+
     #real time video cam edge canny 
     global cv2, printCnt, np
     while True:
@@ -189,12 +233,26 @@ def main():
 
 
         
-        if test_sd.counter['right rectangle'] >= 20: #while safe land condition is not met
-            loop.run_until_complete(adjust())
+        #if test_sd.counter['right rectangle'] >= 20: #while safe land condition is not met
+        if test_sd.counter['right rectangle'] == 0:    
+            #loop.run_until_complete(adjust())
+            print("-- Adjusting")
+            await asyncio.sleep(10)
+            await drone.offboard.set_position_ned(PositionNedYaw(5.0, 0.0, 0.0, 0.0))
+            await asyncio.sleep(10)
+
+            print("-- Stopping offboard")
+            try:
+                await drone.offboard.stop()
+            except OffboardError as error:
+                print(f"Stopping offboard mode failed with error code: {error._result.result}")
         
 
         #land
-        loop.run_until_complete(land()) 
+        #loop.run_until_complete(land()) 
+        print("-- Landing")
+        await asyncio.sleep(5)
+        await drone.action.land()
         break
         a=cv2.waitKey(30)
         if a == 27:  #exit real time cam canny
@@ -209,4 +267,5 @@ def main():
 
     #program entrance
 if __name__ == "__main__":
-    main()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run())
