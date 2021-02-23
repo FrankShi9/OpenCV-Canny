@@ -32,6 +32,7 @@ async def takeoff():
     await drone.action.arm()
     print("-- Taking off")
     await drone.action.takeoff()
+    await asyncio.sleep(10)
 
 #---------------------------------------------------------------------------------------------------
 
@@ -39,6 +40,7 @@ async def land():
     drone = System()
     await drone.connect(system_address="udp://:14540")
     print("Waiting for drone...")
+    await asyncio.sleep(20)
     async for state in drone.core.connection_state():
        if state.is_connected:
            print(f"Drone discovered with UUID: {state.uuid}")
@@ -53,6 +55,7 @@ async def adjust():
     drone = System()
     await drone.connect(system_address="udp://:14540")
 
+
     print("-- Setting initial setpoint")
     await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, 0.0, 0.0))
     
@@ -64,7 +67,8 @@ async def adjust():
         return
 
     print("-- Adjusting")
-    await drone.offboard.set_position_ned(PositionNedYaw(1.0, 0.0, 0.0, 0.0))
+    await drone.offboard.set_position_ned(PositionNedYaw(5.0, 0.0, 0.0, 0.0))
+    await asyncio.sleep(5)
 
     print("-- Stopping offboard")
     try:
@@ -145,7 +149,7 @@ def main():
 
     #take off
     loop.run_until_complete(takeoff()) 
-
+    
     #real time video cam edge canny 
     global cv2, printCnt, np
     while True:
@@ -185,12 +189,13 @@ def main():
 
 
         
-        while test_sd.counter['right rectangle'] >= 100: #while safe land condition is not met
+        if test_sd.counter['right rectangle'] >= 20: #while safe land condition is not met
             loop.run_until_complete(adjust())
         
 
         #land
         loop.run_until_complete(land()) 
+        break
         a=cv2.waitKey(30)
         if a == 27:  #exit real time cam canny
             break
